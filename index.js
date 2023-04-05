@@ -51,6 +51,31 @@ app.get("/books/", async (request, response) => {
   }
 });
 
+//Get Book API
+app.get("/books/:bookId/", async (request, response) => {
+  let jwtToken;
+  const authHeader = request.headers["authorization"];
+  if (authHeader !== undefined) {
+    jwtToken = authHeader.split(" ")[1];
+  }
+  if (jwtToken === undefined) {
+    response.status(401);
+    response.send("Invalid access token");
+  } else {
+    jwt.verify(jwtToken, "kjsdhfiugfiuofhgvoifgjv", async (error, user) => {
+      if (error) {
+        response.status(401);
+        response.send("Invalid Access token");
+      } else {
+        const { bookId } = request.params;
+        const getBookQuery = `SELECT * FROM book WHERE book_id = ${bookId}; `;
+        const book = await db.get(getBookQuery);
+        response.send(book);
+      }
+    });
+  }
+});
+
 //Create USER API
 app.post("/users/", async (request, response) => {
   const { username, name, password, gender, location } = request.body;
