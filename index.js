@@ -3,6 +3,7 @@ const path = require("path");
 const { open } = require("sqlite");
 const sqlite3 = require("sqlite3");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 app.use(express.json());
@@ -28,15 +29,26 @@ initializeDBAndServer();
 
 // Get Books API
 app.get("/books/", async (request, response) => {
-  const getBooksQuery = `
-  SELECT
-    *
-  FROM
-    book
-  ORDER BY
-    book_id;`;
-  const booksArray = await db.all(getBooksQuery);
-  response.send(booksArray);
+  let jwtToken;
+  const authHeader = request.headers["authorization"];
+  if (authHeader !== undefined) {
+    jwtToken = authHeader.split(" ")[1];
+  }
+  if (jwtToken === undefined) {
+    response.status(401);
+    response.send("Invalid access token");
+  } else {
+    jwt.verify(jwtToken, "kjsdhfiugfiuofhgvoifgjv", async (error, user) => {
+      if (error) {
+        response.status(401);
+        response.send("Invalid Access token");
+      } else {
+        const getBooksQuery = `SELECT * FROM book ORDER BY book_id;`;
+        const booksArray = await db.all(getBooksQuery);
+        response.send(booksArray);
+      }
+    });
+  }
 });
 
 //Create USER API
@@ -80,7 +92,11 @@ app.post("/login/", async (request, response) => {
     //compare password,hashed password
     const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
     if (isPasswordMatched) {
-      response.send("Login success!");
+      //access token
+      const payload = { username: username };
+      const jwtToken = jwt.sign(payload, "kjsdhfiugfiuofhgvoifgjv");
+      console.log({ jwtToken });
+      response.send({ jwtToken });
     } else {
       response.status(400);
       response.send("Invalid password");
