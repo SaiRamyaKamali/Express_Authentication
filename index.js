@@ -27,8 +27,8 @@ const initializeDBAndServer = async () => {
 };
 initializeDBAndServer();
 
-// Get Books API
-app.get("/books/", async (request, response) => {
+//middleware Function
+const authenticateToken = (request, response, next) => {
   let jwtToken;
   const authHeader = request.headers["authorization"];
   if (authHeader !== undefined) {
@@ -38,42 +38,41 @@ app.get("/books/", async (request, response) => {
     response.status(401);
     response.send("Invalid access token");
   } else {
-    jwt.verify(jwtToken, "kjsdhfiugfiuofhgvoifgjv", async (error, user) => {
+    jwt.verify(jwtToken, "kjsdhfiugfiuofhgvoifgjv", async (error, payload) => {
       if (error) {
         response.status(401);
         response.send("Invalid Access token");
       } else {
-        const getBooksQuery = `SELECT * FROM book ORDER BY book_id;`;
-        const booksArray = await db.all(getBooksQuery);
-        response.send(booksArray);
+        //We cannot directly pass data to the next handler, but we can send data through the request object
+        request.username = payload.username;
+        next();
       }
     });
   }
+};
+
+//Get Profile API
+app.get("/profile/", authenticateToken, async (request, response) => {
+  let { username } = request;
+  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`;
+  const dbUser = await db.get(selectUserQuery);
+  response.send(dbUser);
+  console.log(username);
+});
+
+// Get Books API
+app.get("/books/", authenticateToken, async (request, response) => {
+  const getBooksQuery = `SELECT * FROM book ORDER BY book_id;`;
+  const booksArray = await db.all(getBooksQuery);
+  response.send(booksArray);
 });
 
 //Get Book API
-app.get("/books/:bookId/", async (request, response) => {
-  let jwtToken;
-  const authHeader = request.headers["authorization"];
-  if (authHeader !== undefined) {
-    jwtToken = authHeader.split(" ")[1];
-  }
-  if (jwtToken === undefined) {
-    response.status(401);
-    response.send("Invalid access token");
-  } else {
-    jwt.verify(jwtToken, "kjsdhfiugfiuofhgvoifgjv", async (error, user) => {
-      if (error) {
-        response.status(401);
-        response.send("Invalid Access token");
-      } else {
-        const { bookId } = request.params;
-        const getBookQuery = `SELECT * FROM book WHERE book_id = ${bookId}; `;
-        const book = await db.get(getBookQuery);
-        response.send(book);
-      }
-    });
-  }
+app.get("/books/:bookId/", authenticateToken, async (request, response) => {
+  const { bookId } = request.params;
+  const getBookQuery = `SELECT * FROM book WHERE book_id = ${bookId}; `;
+  const book = await db.get(getBookQuery);
+  response.send(book);
 });
 
 //Create USER API
